@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#6c4cf1">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>Boxa</title>
+<style>
+:root{--bg:#fff;--text:#1c1c28;--muted:#666a7a;--accent:#6c4cf1;--card:#f4f2ff}
+@media(prefers-color-scheme:dark){:root{--bg:#12121a;--text:#f1f1f6;--muted:#a3a6b8;--accent:#8b73ff;--card:#1d1d2b}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:18px;max-width:640px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
+h1{color:var(--accent);font-size:1.6rem}
+.sub{color:var(--muted);font-size:.9rem;margin-bottom:16px}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,textarea,button{font:inherit;border-radius:12px;border:1px solid rgba(128,128,128,.35);background:var(--bg);color:var(--text);padding:10px}
+textarea{width:100%;min-height:80px;resize:vertical}
+button{background:var(--accent);color:#fff;border:none;font-weight:600;cursor:pointer}
+button.sec{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+#out{font-size:1.5rem;font-weight:700;min-height:2.2rem;margin:6px 0}
+.tag{font-size:.8rem;color:var(--muted)}
+.status{font-size:.85rem;color:var(--muted)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#999;margin-right:6px}
+.on{background:#2db36f}.off{background:#e5484d}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Boxa</h1>
+  <select id="uiLang" aria-label="Language">
+    <option value="hi">हिंदी</option>
+    <option value="en">English</option>
+    <option value="mwr">मारवाड़ी</option>
+  </select>
+</div>
+<p class="sub" id="t_sub"></p>
+
+<div class="card">
+  <div class="status"><span class="dot" id="net"></span><span id="netTxt"></span></div>
+  <div class="status" id="locTxt" style="margin-top:4px"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="locBtn"></button>
+    <select id="lang"><option value="mwr" id="t_target"></option></select>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row" style="margin-bottom:8px">
+    <select id="inLang"><option value="hi-IN" id="t_inhi"></option><option value="en-IN" id="t_inen"></option></select>
+    <button id="micBtn"></button>
+  </div>
+  <textarea id="inp"></textarea>
+  <div class="row" style="margin-top:8px"><button id="goBtn"></button></div>
+</div>
+
+<div class="card">
+  <div class="tag" id="t_outlabel"></div>
+  <div id="out">—</div>
+  <div class="tag" id="note"></div>
+  <div class="row" style="margin-top:8px"><button class="sec" id="speakBtn"></button></div>
+</div>
+
+<p class="status" id="t_foot"></p>
+
+<script>
+/* ---------- साइट की भाषा (UI) : नई भाषा जोड़ने के लिए यहाँ एक और ब्लॉक जोड़ें ---------- */
+const UI = {
+ hi:{ sub:"आप हिंदी या English बोलें, यह स्थानीय भाषा में बदलकर लिखेगा और बोलेगा।",
+  netOn:"इंटरनेट चालू", netOff:"इंटरनेट बंद (offline मोड में भी चलेगा)",
+  locNone:"📍 लोकेशन: चालू नहीं", locBtn:"📍 लोकेशन चालू करें", locSearch:"📍 लोकेशन खोज रहे हैं…",
+  locUnsup:"📍 इस फ़ोन में लोकेशन सपोर्ट नहीं है", locDenied:"📍 लोकेशन की अनुमति नहीं मिली",
+  locOk:"📍 क्षेत्र: राजस्थान → मारवाड़ी / राजस्थानी", locNoDict:"📍 इस क्षेत्र का शब्दकोश अभी नहीं है",
+  target:"मारवाड़ी / राजस्थानी", inhi:"हिंदी बोलें", inen:"English बोलें",
+  ph:"यहाँ लिखें या 🎤 दबाकर बोलें… जैसे: आप कैसे हैं?", mic:"🎤 बोलें", micOn:"🎙️ सुन रहे हैं…",
+  go:"अनुवाद करें", outlabel:"स्थानीय भाषा में:", speak:"🔊 सुनें",
+  nFull:"पूरा वाक्य मिला", nPart:"आंशिक मिलान", nWord:"शब्द-दर-शब्द अनुवाद", nMiss:"कुछ शब्द शब्दकोश में नहीं मिले, वे जस के तस रखे गए",
+  micUnsup:"इस ब्राउज़र में बोलकर इनपुट नहीं चलेगा। Chrome इस्तेमाल करें या लिखें।",
+  micErr:"बोलकर इनपुट नहीं हो पाया (शायद नेट बंद है)। कृपया लिखकर कोशिश करें।",
+  foot:"नोट: शब्दकोश अभी शुरुआती है, पूरी तरह सही अनुवाद के लिए किसी स्थानीय व्यक्ति से जाँच लें। बोलकर इनपुट के लिए Chrome को कभी-कभी नेट चाहिए; बिना नेट के लिखकर इस्तेमाल करें।" },
+ en:{ sub:"Speak or type in Hindi or English. It converts to the local language, shows it in writing and speaks it aloud.",
+  netOn:"Internet on", netOff:"Internet off (works offline too)",
+  locNone:"📍 Location: not enabled", locBtn:"📍 Enable location", locSearch:"📍 Finding your location…",
+  locUnsup:"📍 Location is not supported on this device", locDenied:"📍 Location permission denied",
+  locOk:"📍 Area: Rajasthan → Marwari / Rajasthani", locNoDict:"📍 No dictionary for this area yet",
+  target:"Marwari / Rajasthani", inhi:"Speak Hindi", inen:"Speak English",
+  ph:"Type here or tap 🎤 and speak… e.g. How are you?", mic:"🎤 Speak", micOn:"🎙️ Listening…",
+  go:"Translate", outlabel:"In the local language:", speak:"🔊 Listen",
+  nFull:"Full sentence matched", nPart:"Partial match", nWord:"Word-by-word translation", nMiss:"Some words were not in the dictionary and were kept as they are",
+  micUnsup:"Voice input does not work in this browser. Use Chrome or type instead.",
+  micErr:"Voice input failed (internet may be off). Please type instead.",
+  foot:"Note: the dictionary is just a starter, so please have a local speaker check it. Voice input in Chrome sometimes needs internet; type when offline." },
+ mwr:{ sub:"थे हिंदी या English बोलो, ओ लोकल भाषा में लिख'र सुणावैला।",
+  netOn:"इंटरनेट चालू है", netOff:"इंटरनेट बंद है (बिना नेट भी चालैला)",
+  locNone:"📍 लोकेशन: चालू कोनी", locBtn:"📍 लोकेशन चालू करो", locSearch:"📍 लोकेशन ढूंढ रिया हां…",
+  locUnsup:"📍 इण फोन में लोकेशन कोनी चालै", locDenied:"📍 लोकेशन री इजाजत कोनी मिली",
+  locOk:"📍 इलाको: राजस्थान → मारवाड़ी / राजस्थानी", locNoDict:"📍 इण इलाके रो शब्दकोश अबै कोनी",
+  target:"मारवाड़ी / राजस्थानी", inhi:"हिंदी बोलो", inen:"English बोलो",
+  ph:"अठै लिखो या 🎤 दबा'र बोलो… जियां: आप कैसे हैं?", mic:"🎤 बोलो", micOn:"🎙️ सुण रिया हां…",
+  go:"अनुवाद करो", outlabel:"लोकल भाषा में:", speak:"🔊 सुणो",
+  nFull:"पूरो वाक्य मिल्यो", nPart:"थोड़ो मिल्यो", nWord:"शब्द-शब्द रो अनुवाद", nMiss:"कीं शब्द शब्दकोश में कोनी मिल्या, वै जियां रा तियां राख्या",
+  micUnsup:"इण ब्राउज़र में बोल'र कोनी चालै। Chrome काम में लो या लिखो।",
+  micErr:"बोल'र कोनी हुयो (नेट बंद हो सकै)। लिख'र देखो।",
+  foot:"नोट: शब्दकोश अबै शुरुआती है, किणी मारवाड़ी जाणणिया सूं जँचा लो। बोल'र इनपुट में Chrome नै कदे-कदे नेट चाईजै; बिना नेट लिख'र काम में लो।" }
+};
+let uiLang = localStorage.getItem("boxaUI") || ((navigator.language||"en").toLowerCase().startsWith("hi") ? "hi" : "en");
+let locState="locNone", noteKey="", region=null, lastOut="";
+const $=id=>document.getElementById(id);
+const T=k=>UI[uiLang][k];
+
+function applyUI(){
+  document.documentElement.lang = uiLang==="en" ? "en" : "hi";
+  $("uiLang").value=uiLang;
+  $("t_sub").textContent=T("sub"); $("locBtn").textContent=T("locBtn");
+  $("t_target").textContent=T("target"); $("t_inhi").textContent=T("inhi"); $("t_inen").textContent=T("inen");
+  $("inp").placeholder=T("ph"); $("micBtn").textContent=T("mic"); $("goBtn").textContent=T("go");
+  $("t_outlabel").textContent=T("outlabel"); $("speakBtn").textContent=T("speak"); $("t_foot").textContent=T("foot");
+  $("locTxt").textContent=T(locState); $("note").textContent=noteKey?T(noteKey):"";
+  updateNet();
+}
+$("uiLang").onchange=e=>{ uiLang=e.target.value; localStorage.setItem("boxaUI",uiLang); applyUI(); };
+
+/* ---------- शब्दकोश (मारवाड़ी) : यहाँ और phrases जोड़ सकते हैं ---------- */
+const PHRASES = {
+ "नमस्ते":"राम राम सा","hello":"राम राम सा","hi":"राम राम सा",
+ "आप कैसे हैं":"थे कियां हो सा","how are you":"थे कियां हो सा",
+ "मैं ठीक हूँ":"म्हैं ठीक हूँ","i am fine":"म्हैं ठीक हूँ",
+ "आपका नाम क्या है":"थारो नांव कांई है","what is your name":"थारो नांव कांई है",
+ "मेरा नाम":"म्हारो नांव","my name is":"म्हारो नांव",
+ "धन्यवाद":"घणी खम्मा, धन्यवाद सा","thank you":"घणी खम्मा, धन्यवाद सा",
+ "कहाँ जा रहे हो":"कठै जा रिया हो","where are you going":"कठै जा रिया हो",
+ "खाना खाया":"रोटी जीम ली कै","did you eat":"रोटी जीम ली कै",
+ "पानी चाहिए":"पाणी चाईजै","i need water":"पाणी चाईजै",
+ "कितने पैसे हुए":"कित्ता पईसा हुया","how much money":"कित्ता पईसा हुया",
+ "मुझे समझ नहीं आया":"म्हनै समझ कोनी आई","i did not understand":"म्हनै समझ कोनी आई",
+ "क्या हुआ":"कांई हुयो","what happened":"कांई हुयो",
+ "यहाँ आओ":"अठै आओ","come here":"अठै आओ",
+ "बहुत अच्छा":"घणो बढ़िया","very good":"घणो बढ़िया",
+ "मुझे भूख लगी है":"म्हनै भूख लागी है","i am hungry":"म्हनै भूख लागी है",
+ "मदद करो":"म्हारी मदद करो सा","help me":"म्हारी मदद करो सा",
+ "अस्पताल कहाँ है":"अस्पताल कठै है","where is the hospital":"अस्पताल कठै है",
+ "स्टेशन कहाँ है":"टेसण कठै है","where is the station":"टेसण कठै है",
+ "बस स्टैंड कहाँ है":"बस अड्डो कठै है","where is the bus stand":"बस अड्डो कठै है",
+ "मैं नहीं जानता":"म्हनै कोनी ठा","i do not know":"म्हनै कोनी ठा",
+ "आप कहाँ से हैं":"थे कठै सूं हो","where are you from":"थे कठै सूं हो",
+ "बैठिए":"बैठो सा","please sit":"बैठो सा",
+ "मुझे जाना है":"म्हनै जाणो है","i have to go":"म्हनै जाणो है",
+ "कल मिलते हैं":"काल मिलांला","see you tomorrow":"काल मिलांला",
+ "हाँ":"हां सा","yes":"हां सा","नहीं":"कोनी","no":"कोनी",
+ "कृपया धीरे बोलिए":"मेहरबानी करने धीरे बोलो सा","please speak slowly":"मेहरबानी करने धीरे बोलो सा",
+ "यह कितने का है":"औ कित्ते रो है","how much is this":"औ कित्ते रो है"
+};
+/* शब्द-दर-शब्द fallback */
+const WORDS = {
+ "मैं":"म्हैं","मैंने":"म्हैं","मेरा":"म्हारो","मेरी":"म्हारी","मेरे":"म्हारै","मुझे":"म्हनै","हम":"आपां","हमारा":"आपणो",
+ "आप":"थे","तुम":"थे","तुम्हारा":"थारो","आपका":"थारो","आपकी":"थारी","क्या":"कांई","कहाँ":"कठै","कहां":"कठै",
+ "कब":"कद","कैसे":"कियां","क्यों":"क्यूं","कितना":"कित्तो","कितने":"कित्ता","नहीं":"कोनी","यहाँ":"अठै","यहां":"अठै",
+ "वहाँ":"बठै","वहां":"बठै","पानी":"पाणी","खाना":"जीमण","बहुत":"घणो","थोड़ा":"थोड़ो","अब":"अबै","कल":"काल",
+ "चलो":"चालो","जाओ":"जावो","आओ":"आवो","है":"है","हैं":"हो","हूँ":"हूँ","और":"अर","से":"सूं","को":"नै","का":"रो","की":"री","के":"रै",
+ "घर":"घर","दोस्त":"भायला","लड़का":"छोरो","लड़की":"छोरी","बच्चा":"टाबर","बच्चे":"टाबर","पैसा":"पईसा","पैसे":"पईसा",
+ "अच्छा":"बढ़िया","ठीक":"ठीक","समझ":"समझ","बोलो":"बोलो","देखो":"देखो","सुनो":"सुणो","रुको":"ठैरो","जल्दी":"जल्दी","धीरे":"धीरे",
+ "i":"म्हैं","you":"थे","where":"कठै","what":"कांई","how":"कियां","water":"पाणी","food":"जीमण","friend":"भायला","home":"घर",
+ "money":"पईसा","yes":"हां सा","no":"कोनी","here":"अठै","there":"बठै","good":"बढ़िया","very":"घणो","come":"आवो","go":"जावो","help":"मदद"
+};
+
+/* ---------- Region detection (offline, सिर्फ़ coordinates से) ---------- */
+function regionFor(lat, lon){
+  if(lat>=23.0 && lat<=30.2 && lon>=69.5 && lon<=78.3) return {id:"mwr"};
+  return null;
+}
+
+function updateNet(){ const on=navigator.onLine; $("net").className="dot "+(on?"on":"off");
+  $("netTxt").textContent = on ? T("netOn") : T("netOff"); }
+addEventListener("online",updateNet); addEventListener("offline",updateNet);
+
+$("locBtn").onclick=()=>{
+  if(!navigator.geolocation){ locState="locUnsup"; applyUI(); return; }
+  locState="locSearch"; applyUI();
+  navigator.geolocation.getCurrentPosition(p=>{
+    region=regionFor(p.coords.latitude,p.coords.longitude);
+    locState = region ? "locOk" : "locNoDict"; applyUI();
+  },()=>{ locState="locDenied"; applyUI(); },{enableHighAccuracy:false,timeout:15000,maximumAge:600000});
+};
+
+/* ---------- Translate ---------- */
+function norm(s){ return s.toLowerCase().replace(/[?।.!,]/g," ").replace(/\s+/g," ").trim(); }
+function translate(text){
+  const t=norm(text); if(!t) return {out:"",note:""};
+  if(PHRASES[t]) return {out:PHRASES[t],note:"nFull"};
+  let best=null;
+  for(const k of Object.keys(PHRASES)){ if(t.includes(k) && (!best||k.length>best.length)) best=k; }
+  if(best){
+    let rest=t.replace(best,"").trim();
+    let restT=rest?rest.split(" ").map(w=>WORDS[w]||w).join(" "):"";
+    return {out:(PHRASES[best]+(restT?" "+restT:"")).trim(),note:"nPart"};
+  }
+  let miss=0;
+  const out=t.split(" ").map(w=>{ if(WORDS[w]) return WORDS[w]; miss++; return w; }).join(" ");
+  return {out, note: miss? "nMiss" : "nWord"};
+}
+function run(){
+  const r=translate($("inp").value);
+  lastOut=r.out; $("out").textContent=r.out||"—"; noteKey=r.note; $("note").textContent=noteKey?T(noteKey):"";
+  if(r.out) speak(r.out);
+}
+$("goBtn").onclick=run;
+
+/* ---------- Speak (Hindi आवाज़ देवनागरी पढ़ती है) ---------- */
+function speak(text){
+  if(!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text); u.lang="hi-IN"; u.rate=0.9;
+  const v=speechSynthesis.getVoices().find(v=>v.lang&&v.lang.toLowerCase().startsWith("hi"));
+  if(v) u.voice=v; speechSynthesis.speak(u);
+}
+$("speakBtn").onclick=()=>{ if(lastOut) speak(lastOut); };
+
+/* ---------- Mic ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+$("micBtn").onclick=()=>{
+  if(!SR){ alert(T("micUnsup")); return; }
+  const rec=new SR(); rec.lang=$("inLang").value; rec.interimResults=false;
+  $("micBtn").textContent=T("micOn");
+  rec.onresult=e=>{ $("inp").value=e.results[0][0].transcript; run(); };
+  rec.onerror=()=>{ alert(T("micErr")); };
+  rec.onend=()=>{ $("micBtn").textContent=T("mic"); };
+  rec.start();
+};
+
+applyUI();
+if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
+</script>
+</body>
+</html>
